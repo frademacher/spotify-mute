@@ -369,16 +369,16 @@ class MuteModeStrategy(ABC):
 
     def spotify_connect(self):
         sessionBus = SessionBus()
-        playerProxy = sessionBus.get(self._DBUS_SPOTIFY_NAME, 
+        self._player_proxy = sessionBus.get(self._DBUS_SPOTIFY_NAME,
             self._DBUS_PLAYER_PATH)
-        playerProxy.PropertiesChanged.connect(
+        self._player_proxy.PropertiesChanged.connect(
             self._spotify_played_title_changed)
 
     def _spotify_played_title_changed(self, interface_name, changed_properties,
         invalidated_properties):
         if interface_name != self._DBUS_PLAYER_INTERFACE:
             return
-    
+
         if not 'PlaybackStatus' in changed_properties or \
             not 'Metadata' in changed_properties:
             return
