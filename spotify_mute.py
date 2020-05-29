@@ -4,13 +4,13 @@
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation in version 2 of the License.
 
-# Spotify Mute is distributed in the hope that it will be useful, but WITHOUT 
+# Spotify Mute is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 # FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
 # details.
 
 # You should have received a copy of the GNU General Public License
-# along with Spotify Mute. If not, see 
+# along with Spotify Mute. If not, see
 # <https://www.gnu.org/licenses/old-licenses>.
 
 # Copyright (c) 2018 Florian Rademacher <florian.rademacher@fh-dortmund.de>
@@ -35,12 +35,12 @@ class CommandlineInterface:
     def __init__(self):
         self._argument_parser = argparse.ArgumentParser(
             description='Mute Spotify advertisements')
-        self._argument_parser.add_argument('-c', '--config', 
+        self._argument_parser.add_argument('-c', '--config',
             dest='configuration_file', help='Configuration file path')
-        self._argument_parser.add_argument('-v', '--version', 
+        self._argument_parser.add_argument('-v', '--version',
             action='store_true', dest='has_version',
             help='Print version information')
-        
+
     def parse_arguments(self):
         self._parsed_arguments = self._argument_parser.parse_args()
 
@@ -54,7 +54,7 @@ class CommandlineInterface:
         return self._parsed_arguments.has_version
 
 class Configuration:
-    MAIN_CONFIG_SECTION = 'SPOTIFY_MUTE'    
+    MAIN_CONFIG_SECTION = 'SPOTIFY_MUTE'
     MUTIFY_MODE = 'MUTIFY'
     _VALID_MODES = [MUTIFY_MODE]
 
@@ -65,7 +65,7 @@ class Configuration:
         'Mode' : _DEFAULT_MODE,
         'ShowNotification' : _DEFAULT_SHOW_NOTIFICATION,
         'WaitBeforeUnmute' : _DEFAULT_WAIT_BEFORE_UNMUTE
-    }    
+    }
 
     _MAIN_CONFIG_SECTION_VALID_ENTRIES = [
         'Mode', 
@@ -73,7 +73,7 @@ class Configuration:
         'WaitBeforeUnmute'
     ]
     _MUTIFY_MODE_VALID_ENTRIES = [
-        'ShowNotification', 
+        'ShowNotification',
         'WaitBeforeUnmute'
     ]
     _VALID_CONFIGURATION = {
@@ -105,16 +105,16 @@ class Configuration:
     def parse_configuration(self, configuration_file):
         self._parsing_successful = False
 
-        # Check if configuration file exists (otherwise open() raises a 
+        # Check if configuration file exists (otherwise open() raises a
         # FileNotFound exception)
         fd = open(configuration_file, 'r')
-        fd.close()        
-        
+        fd.close()
+
         self._parsed_configuration = configparser.ConfigParser()
         # Don't lowercase option names
         self._parsed_configuration.optionxform = lambda option: option
         self._parsed_configuration.read(configuration_file)
-        
+
         self._validate_config_sections()
         self._validate_config_entries()
         self._validate_mode()
@@ -134,7 +134,7 @@ class Configuration:
             if not configurationKey in self._main_config_entries:
                 defaultValue = self._DEFAULT_VALUES[configurationKey]
                 self._main_config_entries[configurationKey] = defaultValue
-    
+
     def get_effective_configuration_values(self):
         effectiveConfiguration = {}
 
@@ -184,7 +184,7 @@ class Configuration:
             return float(waitBeforeUnmute)
 
         return self._parsed_configuration[section][entry_name]
-        
+
     def _get_configuration_item_tuple(self, items):
         resultConfigEntries = {}
 
@@ -220,7 +220,7 @@ class Configuration:
         for section in self._parsed_configuration.sections():
             for entry in self._parsed_configuration[section]:
                 if entry not in self._VALID_CONFIGURATION[section]:
-                    raise self.InvalidConfigurationEntryError(section, entry)        
+                    raise self.InvalidConfigurationEntryError(section, entry)
 
     def _validate_mode(self):
         configuredMode = \
@@ -228,7 +228,7 @@ class Configuration:
                 'Mode')
 
         if configuredMode not in self._VALID_MODES:
-            raise self.InvalidConfigurationEntryValueError('Mode', 
+            raise self.InvalidConfigurationEntryValueError('Mode',
                 configuredMode, self._VALID_MODES)
 
     def _validate_wait_before_unmute(self):
@@ -236,7 +236,7 @@ class Configuration:
             self._get_entry_from_parsed_configuration(self.MAIN_CONFIG_SECTION,
                 'Mode')
         configuredWaitTime = \
-            self._get_entry_from_parsed_configuration(configuredMode, 
+            self._get_entry_from_parsed_configuration(configuredMode,
                 'WaitBeforeUnmute', True)
 
         if not configuredWaitTime:
@@ -244,12 +244,12 @@ class Configuration:
                 self._get_entry_from_parsed_configuration(
                     self.MAIN_CONFIG_SECTION, 'WaitBeforeUnmute', True)
 
-        if configuredWaitTime:            
+        if configuredWaitTime:
             try:
                 configuredWaitTimeFloat = float(configuredWaitTime)
                 if configuredWaitTimeFloat < 0:
                     raise self.InvalidConfigurationEntryValueError(
-                        'WaitBeforeUnmute', configuredWaitTime, 
+                        'WaitBeforeUnmute', configuredWaitTime,
                         ['greater or equal zero'])
             except ValueError:
                 raise self.InvalidConfigurationEntryValueError(
@@ -275,10 +275,10 @@ class Configuration:
             validValuesHint = ''
             if self.valid_values:
                 validValuesCommaSeparated = \
-                    ', '.join(map(str, self.valid_values)) 
+                    ', '.join(map(str, self.valid_values))
                 validValuesHint = 'Valid values would be: %s.' % \
                     validValuesCommaSeparated
-            
+
             return 'Invalid configuration value detected for entry "%s": ' \
                 '%s. %s' % (self.entry, self.value, validValuesHint)
 
@@ -349,7 +349,7 @@ class MuteModeStrategy(ABC):
     def ad_start(self):
         pass
 
-    def ad_start_after(self):        
+    def ad_start_after(self):
         if self._show_mute_notification:
             Util.show_notification('Sound muted', 'Advertisement detected, ' \
                 'sound is now muted', 2000)
@@ -388,7 +388,7 @@ class MuteModeStrategy(ABC):
 
         if not 'mpris:trackid' in changed_properties['Metadata']:
             return
-    
+
         currentTrackId = changed_properties['Metadata']['mpris:trackid']
         if not isinstance(currentTrackId, str):
             return
@@ -397,7 +397,7 @@ class MuteModeStrategy(ABC):
             return
         else:
             self._previous_track_id = currentTrackId
-    
+
         if currentTrackId.startswith('spotify:ad'):
             self.ad_start_before()
             self.ad_start()
@@ -418,7 +418,7 @@ class MutifyMode(MuteModeStrategy):
         self._mute_master()
 
     def ad_stop(self):
-        self._unmute_master()        
+        self._unmute_master()
 
     def _mute_master(self):
         subprocess.Popen(self._MUTE_MASTER_COMMAND.split())
@@ -439,7 +439,7 @@ def _print_effective_configuration_values(configuration):
         lambda s: len(s), effectiveConfiguration.keys()
     ))
     formatString = '  %-' + str(lengthOfLongestKey) + 's = %s'
-    
+
     logging.getLogger().info('Current configuration is:')
     for key in sorted(effectiveConfiguration):
         value = effectiveConfiguration[key]
@@ -447,6 +447,13 @@ def _print_effective_configuration_values(configuration):
 
 def _print_version():
     logging.getLogger().info('This is %s version %s.' % (_NAME, _VERSION))
+
+def _die_if_spotify_is_not_running():
+    for runningProcess in psutil.process_iter(['name']):
+        if runningProcess.name() == 'spotify':
+            return True
+
+    sys.exit(0)
 
 if __name__ == '__main__':
     logging.basicConfig(format=None, level=logging.INFO)
@@ -467,13 +474,13 @@ if __name__ == '__main__':
             logging.getLogger().warning('Configuration file "%s" not found. ' \
                 'Using default configuration.' % \
                 commandline.get_configuration_file())
-        except (Configuration.InvalidConfigurationEntryValueError, 
+        except (Configuration.InvalidConfigurationEntryValueError,
             Configuration.MissingConfigurationEntryValueError,
             Configuration.InvalidConfigurationSectionError,
             Configuration.InvalidConfigurationEntryError) as err:
             _critical_error(str(err))
         except configparser.Error as err:
-            _critical_error('Error while parsing configuration: %s.' % 
+            _critical_error('Error while parsing configuration: %s.' %
                 err.message)
     else:
         logging.getLogger().warning('No configuration file specified. Using ' \
@@ -494,6 +501,8 @@ if __name__ == '__main__':
     except GLib.Error as err:
         _critical_error('Couldn\'t connect to Spotify service. Is Spotify ' \
             'running? (Detailed error was "%s").' % err)
+
+    GLib.timeout_add(3000, _die_if_spotify_is_not_running)
 
     eventLoop = GLib.MainLoop()
     eventLoop.run()
