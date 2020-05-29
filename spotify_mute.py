@@ -19,6 +19,7 @@ import argparse
 import configparser
 import logging
 import os.path
+import psutil
 import re
 import subprocess
 import sys
@@ -56,7 +57,8 @@ class CommandlineInterface:
 class Configuration:
     MAIN_CONFIG_SECTION = 'SPOTIFY_MUTE'
     MUTIFY_MODE = 'MUTIFY'
-    _VALID_MODES = [MUTIFY_MODE]
+    MUTIFY_PULSE_MODE = 'MUTIFY_PULSE'
+    _VALID_MODES = [MUTIFY_MODE, MUTIFY_PULSE_MODE]
 
     _DEFAULT_MODE = MUTIFY_MODE
     _DEFAULT_SHOW_NOTIFICATION = True
@@ -68,8 +70,8 @@ class Configuration:
     }
 
     _MAIN_CONFIG_SECTION_VALID_ENTRIES = [
-        'Mode', 
-        'ShowNotification', 
+        'Mode',
+        'ShowNotification',
         'WaitBeforeUnmute'
     ]
     _MUTIFY_MODE_VALID_ENTRIES = [
@@ -157,18 +159,18 @@ class Configuration:
         for entry in self._parsed_configuration[configuration_section]:
             dictionary[entry] = self._get_entry_from_parsed_configuration(
                 configuration_section, entry)
-        
+
     def _get_configuration_dict(self, configuration_section):
-        if configuration_section not in self._VALID_CONFIGURATION:
+        if configuration_section == self.MAIN_CONFIG_SECTION:
+            return self._main_config_entries
+        elif configuration_section == self.MUTIFY_MODE or \
+            configuration_section == self.MUTIFY_PULSE_MODE:
+            return self._mutify_config_entries
+        elif configuration_section not in self._VALID_CONFIGURATION:
             raise NotImplementedError('Configuration dictionary not ' \
                 'implemented for section "%s"' % configuration_section)
 
-        if configuration_section == self.MAIN_CONFIG_SECTION:
-            return self._main_config_entries
-        elif configuration_section == self.MUTIFY_MODE:
-            return self._mutify_config_entries
-
-    def _get_entry_from_parsed_configuration(self, section, entry_name, 
+    def _get_entry_from_parsed_configuration(self, section, entry_name,
         raw=False):
         if not self._parsed_configuration or \
             section not in self._parsed_configuration or \
@@ -426,6 +428,41 @@ class MutifyMode(MuteModeStrategy):
     def _unmute_master(self):
         subprocess.Popen(self._UNMUTE_MASTER_COMMAND.split())
 
+class PulseMutifyMode(MuteModeStrategy):
+    _MUTE_SINK_COMMAND_TEMPLATE = 'pactl set-sink-mute "%(sink)s" "1"'
+    _UNMUTE_SINK_COMMAND_TEMPLATE = 'pactl set-sink-mute "%(sink)s" "0"'
+
+    def __init__(self, configuration):
+        super().__init__(configuration)
+        self._get_current_sink()
+
+    def _get_current_sink(self):
+        cmd = 'export LC_ALL=C && ' \
+            'pactl info | grep "Default Sink" | cut -d " " -f3'
+        ps = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT)
+        out, err = ps.communicate()
+
+        if err:
+            raise ValueError('Could not determine PulseAudio sink. ' \
+                'Original error message was: %s' % err.decode('utf-8'))
+
+        sr = {'sink': out.decode('utf-8').strip()}
+        self._MUTE_SINK_COMMAND = self._MUTE_SINK_COMMAND_TEMPLATE % sr
+        self._UNMUTE_SINK_COMMAND = self._UNMUTE_SINK_COMMAND_TEMPLATE % sr
+
+    def ad_start(self):
+        self._mute_master()
+
+    def ad_stop(self):
+        self._unmute_master()
+
+    def _mute_master(self):
+        subprocess.Popen(self._MUTE_SINK_COMMAND, shell=True)
+
+    def _unmute_master(self):
+        subprocess.Popen(self._UNMUTE_SINK_COMMAND, shell=True)
+
 def _critical_error(message):
     logging.getLogger().error(message + ' Exiting.')
     sys.exit(4)
@@ -465,7 +502,7 @@ if __name__ == '__main__':
         _print_version()
         sys.exit(0)
 
-    configurationFile = commandline.get_configuration_file()    
+    configurationFile = commandline.get_configuration_file()
     configuration = Configuration()
     if configurationFile:
         try:
@@ -495,6 +532,8 @@ if __name__ == '__main__':
     muteStrategy = None
     if muteMode == Configuration.MUTIFY_MODE:
         muteStrategy = MutifyMode(configuration)
+    elif muteMode == Configuration.MUTIFY_PULSE_MODE:
+        muteStrategy = PulseMutifyMode(configuration)
 
     try:
         muteStrategy.spotify_connect()
